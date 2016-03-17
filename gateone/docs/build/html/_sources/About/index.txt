@@ -120,11 +120,11 @@ The first time you execute gateone.py it will create a default configuration fil
     auth = None
     ca_certs = None
     certificate = "certificate.pem"
-    command = "/opt/gateone/plugins/ssh/scripts/ssh_connect.py -S '/tmp/gateone/%SESSION%/%SHORT_SOCKET%' --sshfp -a '-oUserKnownHostsFile=%USERDIR%/%USER%/ssh/known_hosts'"
+    command = "/opt/gateone/plugins/ssh/scripts/ssh_connect.py -S '/tmp/gateone/%SESSION%/%SHORT_SOCKET%' --sshfp -a '-oUserKnownHostsFile=%USERDIR%/%USER%/ssh/known_hosts' --login='%LOGIN%'"
     cookie_secret = "NjAxMDM0MzJmYTdmNDgzY2FiNGYzZGI0ZDEyYjUyYTI3Y"
     debug = False
     disable_ssl = False
-    dtach = True
+    dtach = False
     embedded = False
     enable_unix_socket = False
     gid = "0"
@@ -137,7 +137,7 @@ The first time you execute gateone.py it will create a default configuration fil
     log_file_prefix = "/opt/gateone/logs/webserver.log"
     logging = "info"
     log_to_stderr = False
-    origins = "http://localhost;https://localhost;http://127.0.0.1;https://127.0.0.1;https://yourhostname.example.com;https://yourhostname"
+    origins = "*"
     pam_realm = "yourhostname"
     pam_service = "login"
     pid_file = "/var/run/gateone.pid"
@@ -354,7 +354,7 @@ command
 
 ::
 
-    command = "/opt/gateone/plugins/ssh/scripts/ssh_connect.py -S '/tmp/gateone/%SESSION%/%r@%h:%p' -a '-oUserKnownHostsFile=%USERDIR%/%USER%/known_hosts'"
+    command = "/opt/gateone/plugins/ssh/scripts/ssh_connect.py -S '/tmp/gateone/%SESSION%/%r@%h:%p' -a '-oUserKnownHostsFile=%USERDIR%/%USER%/known_hosts' --login='%LOGIN%'"
     # NOTE: The actual default is "<path to gateone>/plugins/ssh/scripts/ssh_connect.py ..."
 
 This option specifies the command Gate One will run whenever a new terminal is opened.  The default is for Gate One to run the ssh_connect.py script.  Any interactive terminal application should work (e.g. 'nethack').
@@ -438,7 +438,7 @@ dtach
 
 ::
 
-    dtach = True
+    dtach = False
 
 This feature is special:  It enables Gate One to be restarted (think: upgraded) without losing user's connected sessions.  This option is enabled by default.
 
@@ -544,7 +544,7 @@ origins
 
 ::
 
-    origins = "http://localhost;https://localhost;http://127.0.0.1;https://127.0.0.1;https://yourhostname;https://yourhostname:8080"
+    origins = "*"
 
 By default Gate One will only allow connections from web pages that match the configured origins.  If a user is denied access based on a failed origin check a message will be logged like so:
 

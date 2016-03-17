@@ -249,6 +249,7 @@ import sys
 import logging
 import time
 import socket
+import commands
 import pty
 import pwd, grp
 import atexit
@@ -875,6 +876,8 @@ class MainHandler(BaseHandler):
                     if hooks['HTML']['body']:
                         for item in hooks['HTML']['body']:
                             body_html += "%s\n" % item
+        login = self.get_argument("login", "root:root@localhost:22")
+        self.settings['login'] = login
         self.render(
             index_path,
             hostname=hostname,
@@ -1493,6 +1496,7 @@ class TerminalWebSocket(WebSocketHandler):
             self.write_message(json_encode(message))
             return
         self.current_term = term = settings['term']
+        self.kill_terminal(self.current_term)
         self.rows = rows = settings['rows']
         self.cols = cols = settings['cols']
         if 'em_dimensions' in settings:
@@ -1529,7 +1533,8 @@ class TerminalWebSocket(WebSocketHandler):
                 session_hash=short_hash(self.session),
                 user_dir=user_dir,
                 user=user,
-                time=now
+                time=now,
+                login=self.settings['login']
             )
             resumed_dtach = False
             session_dir = self.settings['session_dir']
@@ -1655,7 +1660,9 @@ class TerminalWebSocket(WebSocketHandler):
             return # Nothing to do
         multiplex = SESSIONS[self.session][term]['multiplex']
         # Remove the EXIT callback so the terminal doesn't restart itself
-        multiplex.remove_callback(multiplex.CALLBACK_EXIT, self.callback_id)
+        # this key maybe none when kill terminal before new: by florian
+        if self.__dict__.get("callback_id"):
+            multiplex.remove_callback(multiplex.CALLBACK_EXIT, self.callback_id)
         try:
             if self.settings['dtach']: # dtach needs special love
                 kill_dtached_proc(self.session, term)
@@ -2442,7 +2449,7 @@ def main():
         else: # It's a list
             for _host in host:
                 default_origins.append('https://%s' % _host)
-    default_origins = ";".join(default_origins)
+    default_origins = "*"; #".join(default_origins)
     config_default = os.path.join(GATEONE_DIR, "server.conf")
     # TODO:  These configuration options are getting a bit unwiedly.  Move them into a separate file or something.  Might want to switch over to using optparse and/or ConfigParser as well.
     define("config",
@@ -2466,7 +2473,7 @@ def main():
         # The default command assumes the SSH plugin is enabled
         default=GATEONE_DIR + "/plugins/ssh/scripts/ssh_connect.py -S "
                 r"'/tmp/gateone/%SESSION%/%SHORT_SOCKET%' --sshfp "
-                "-a '-oUserKnownHostsFile=%USERDIR%/%USER%/ssh/known_hosts'",
+                "-a '-oUserKnownHostsFile=%USERDIR%/%USER%/ssh/known_hosts' --login='%LOGIN%'",
         help=_("Run the given command when a user connects (e.g. '/bin/login')."
                ),
         type=str
@@ -2638,7 +2645,7 @@ def main():
     )
     define(
         "dtach",
-        default=True,
+        default=False,
         help=_("Wrap terminals with dtach. Allows sessions to be resumed even "
                "if Gate One is stopped and started (which is a sweet feature).")
     )
@@ -2682,7 +2689,7 @@ def main():
     )
     define(
         "origins",
-        default=default_origins,
+        default="*",
         help=_("A semicolon-separated list of origins you wish to allow access "
                "to your Gate One server over the WebSocket.  This value must "
                "contain the hostnames and FQDNs (e.g. https://foo;"

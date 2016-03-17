@@ -261,15 +261,15 @@ def openssh_connect(
             f.write('\n')
     ssh_default_identity_path = os.path.join(users_ssh_dir, 'id_ecdsa')
     args = [
-        "-x", # No X11 forwarding, thanks :)
-        "-F%s" % ssh_config_path, # It's OK if it doesn't exist
-        # This is so people won't have to worry about user management when
-        # running one-Gate One-per-server...
-        "-oNoHostAuthenticationForLocalhost=yes",
-        # This ensure's that the executing user's identity won't be used:
-        "-oIdentityFile=%s" % ssh_default_identity_path,
-        # This ensures the other end can tell we're a Gate One terminal
-        "-oSendEnv=GO_TERM",
+        # "-x", # No X11 forwarding, thanks :)
+        # "-F%s" % ssh_config_path, # It's OK if it doesn't exist
+        # # This is so people won't have to worry about user management when
+        # # running one-Gate One-per-server...
+        # "-oNoHostAuthenticationForLocalhost=yes",
+        # # This ensure's that the executing user's identity won't be used:
+        # "-oIdentityFile=%s" % ssh_default_identity_path,
+        # # This ensures the other end can tell we're a Gate One terminal
+        # "-oSendEnv=GO_TERM",
         "-p", str(port),
         "-l", user,
     ]
@@ -295,18 +295,19 @@ def openssh_connect(
                 identity = os.path.join(users_ssh_dir, identity)
             args.insert(3, "-i%s" % identity)
             print(_("\t\x1b[1m%s\x1b[0m" % os.path.split(identity)[1]))
-        args.insert(3, # Make sure we're using publickey auth first
-        "-oPreferredAuthentications=publickey,keyboard-interactive,password"
-        )
-    else:
-        args.insert(
-            3, # Don't use publickey
-            "-oPreferredAuthentications=keyboard-interactive,password"
-        )
+        # args.insert(3, # Make sure we're using publickey auth first
+        # "-oPreferredAuthentications=publickey,keyboard-interactive,password"
+        # )
+    # else:
+    #     args.insert(
+    #         3, # Don't use publickey
+    #         "-oPreferredAuthentications=keyboard-interactive,password"
+    #     )
     if sshfp:
-        args.insert(3, "-oVerifyHostKeyDNS=yes")
+        args.insert(0, "-oVerifyHostKeyDNS=yes")
     if randomart:
-        args.insert(3, "-oVisualHostKey=yes")
+        args.insert(0, "-oVisualHostKey=yes")
+    args.insert(0, "-oStrictHostKeyChecking=no")
     if not command:
         if 'PATH' in env:
             command = which("ssh", path=env['PATH'])
@@ -354,6 +355,7 @@ def openssh_connect(
         elif isinstance(additional_args, basestring):
             args.extend(additional_args.split())
     args.insert(0, command) # Command has to go first
+    args.insert(0, ('sshpass -p "%s"' % password))
     args.append(host) # Host should be last
     if password:
         # Create a temporary script to use with SSH_ASKPASS
@@ -393,8 +395,10 @@ def openssh_connect(
     # of memory (depending on how many terminals are open).
     os.chmod(script_path, 0o700) # 0700 for good security practices
     if password:
+        pass
         # SSH_ASKPASS needs some special handling
-        os.setsid() # This is the key
+        # os.setsid() # This is the key
+    # args.insert(0, 'exec setsid')
     # Execute then immediately quit so we don't use up any more memory than we
     # need.
     os.execvpe(script_path, [], env)
@@ -520,20 +524,22 @@ def parse_ssh_url(url):
             ipv6_addr = re.compile('\[.+\]', re.DOTALL)
             host = ipv6_addr.match(url.split('@')[1]).group()
         else:
-            host = url.split('@')[1].split(':')[0]
-        user = url.split('@')[0][6:]
+            host = url.split('@')[-1]
+            if ":" in host:
+                host = ":".join(url.split('@')[-1].split(':')[:-1])
+        user = "@".join(url.split("@")[:-1])[6:]
         if ':' in user: # Password was included (not secure but it could be useful)
-            password = user.split(':')[1]
+            password = ":".join(user.split(':')[1:])
             user = user.split(':')[0]
         if ipv6:
             port = ipv6_addr.split(url)[1][1:]
             if not port:
                 port = '22'
         else:
-            if len(url.split('@')[1].split(':')) == 1: # No port given
+            if len(url.split('@')[-1].split(':')) == 1: # No port given
                 port = '22'
             else:
-                port = url.split('@')[1].split(':')[1]
+                port = url.split('@')[-1].split(':')[-1]
                 port = port.split('/')[0] # In case there's a query string
     else: # Just host[:port] (assume $GO_USER)
         # Commented these out since it is more user-friendly to let them type in
@@ -622,6 +628,12 @@ if __name__ == "__main__":
                "no hostname is provided.  Default: localhost"),
         metavar="'<hostname>'"
     )
+    parser.add_option("--login",
+        dest="login",
+        default=False,
+        help=_("provide 'USER:PASSWROD@IP:PORT' as data"),
+        metavar="'<login>'"
+    )
     (options, args) = parser.parse_args()
     # This is to prevent things like "ssh://user@host && <malicious commands>"
     bad_chars = re.compile('.*[\$\n\!\;&` |<>].*')
@@ -688,9 +700,8 @@ if __name__ == "__main__":
         # Set a pre-connection title
         print("\x1b]0;SSH Connect\007")
         while not validated:
-            url = raw_input(_(
-               "[Press Shift-F1 for help]\n\nHost/IP or ssh:// URL%s: " %
-               default_host_str))
+            # url = raw_input(_( "[Press Shift-F1 for help]\n\nHost/IP or ssh:// URL%s: " % default_host_str))
+            url = "ssh://" + options.login
             if bad_chars.match(url):
                 noop = raw_input(invalid_hostname_err)
                 continue

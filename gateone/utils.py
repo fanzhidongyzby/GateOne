@@ -452,7 +452,7 @@ def mkdir_p(path):
         else: raise
 
 def cmd_var_swap(cmd,
-        session=None, session_hash=None, user_dir=None, user=None, time=None):
+        session=None, session_hash=None, user_dir=None, user=None, time=None, login=None):
     """
     Returns *cmd* with special inline variables swapped out for their respective
     argument values.  The special variables are as follows:
@@ -483,6 +483,8 @@ def cmd_var_swap(cmd,
         cmd = cmd.replace(r'%USER%', user)
     if time:
         cmd = cmd.replace(r'%TIME%', str(time))
+    if login:
+        cmd = cmd.replace(r'%LOGIN%', login)
     return cmd
 
 def short_hash(to_shorten):
